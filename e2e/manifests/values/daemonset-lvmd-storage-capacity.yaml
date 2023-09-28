@@ -76,6 +76,8 @@ storageClasses:
       isDefaultClass: false
       volumeBindingMode: WaitForFirstConsumer
       allowVolumeExpansion: true
+      additionalParameters:
+        topolvm.io/device-class: "ssd"
 
 webhook:
   podMutatingWebhook:
