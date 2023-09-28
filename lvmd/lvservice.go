@@ -208,8 +208,8 @@ func (s *lvService) CreateLVSnapshot(_ context.Context, req *proto.CreateLVSnaps
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if dc.Type == TypeThin != sourceLV.IsThin() {
-		return nil, status.Errorf(codes.InvalidArgument, "%s snapshot was requested for a volume that is not", dc.Type)
+	if dc.Type == TypeThin && !sourceLV.IsThin() {
+		return nil, status.Error(codes.InvalidArgument, "thin snapshot was requested for a volume that is not")
 	}
 
 	// In case of thin-snapshots, the size is the same as the source volume on snapshot creation, and then
