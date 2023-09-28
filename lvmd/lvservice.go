@@ -176,18 +176,12 @@ func (s *lvService) RemoveLV(_ context.Context, req *proto.RemoveLVRequest) (*pr
 }
 
 func (s *lvService) CreateLVSnapshot(_ context.Context, req *proto.CreateLVSnapshotRequest) (*proto.CreateLVSnapshotResponse, error) {
-	var snapType string
 	dc, err := s.dcmapper.DeviceClass(req.DeviceClass)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "%s: %s", err.Error(), req.DeviceClass)
 	}
 
-	switch dc.Type {
-	case TypeThin:
-		snapType = "thin-snapshot"
-	case TypeThick:
-		return nil, status.Error(codes.Unimplemented, "device class is not thin. Thick snapshots are not implemented yet")
-	default:
+	if dc.Type != TypeThin && dc.Type != TypeThick {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid device class type %v", string(dc.Type))
 	}
 
@@ -214,8 +208,8 @@ func (s *lvService) CreateLVSnapshot(_ context.Context, req *proto.CreateLVSnaps
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if !sourceLV.IsThin() {
-		return nil, status.Error(codes.Unimplemented, "snapshot can be created for only thin volumes")
+	if dc.Type == TypeThin != sourceLV.IsThin() {
+		return nil, status.Errorf(codes.InvalidArgument, "%s snapshot was requested for a volume that is not", dc.Type)
 	}
 
 	// In case of thin-snapshots, the size is the same as the source volume on snapshot creation, and then
@@ -237,7 +231,7 @@ func (s *lvService) CreateLVSnapshot(_ context.Context, req *proto.CreateLVSnaps
 		"sizeOnCreation": sizeOnCreation,
 		"desiredSize":    desiredSize,
 		"sourceVol":      sourceVolume,
-		"snapType":       snapType,
+		"snapType":       string(dc.Type),
 		"accessType":     req.GetAccessType(),
 	})
 	// Create snapshot lv
@@ -258,7 +252,7 @@ func (s *lvService) CreateLVSnapshot(_ context.Context, req *proto.CreateLVSnaps
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	// If source volume is thin, activate the thin snapshot lv with accessmode.
+	// Activate the snapshot lv with accessmode.
 	if err := snapLV.Activate(req.AccessType); err != nil {
 		log.Error("failed to activate snap volume, deleting snapshot", map[string]interface{}{
 			log.FnError: err,
@@ -338,7 +332,6 @@ func (s *lvService) ResizeLV(_ context.Context, req *proto.ResizeLVRequest) (*pr
 	}
 
 	free := uint64(0)
-	var pool *command.ThinPool
 	switch dc.Type {
 	case TypeThick:
 		free, err = vg.Free()
@@ -349,7 +342,7 @@ func (s *lvService) ResizeLV(_ context.Context, req *proto.ResizeLVRequest) (*pr
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	case TypeThin:
-		pool, err = vg.FindPool(dc.ThinPoolConfig.Name)
+		pool, err := vg.FindPool(dc.ThinPoolConfig.Name)
 		if err != nil {
 			log.Error("failed to get thinpool", map[string]interface{}{
 				log.FnError: err,
@@ -381,8 +374,7 @@ func (s *lvService) ResizeLV(_ context.Context, req *proto.ResizeLVRequest) (*pr
 		return nil, status.Errorf(codes.ResourceExhausted, "no enough space left on VG: free=%d, requested=%d", free, requested-current)
 	}
 
-	err = lv.Resize(requested)
-	if err != nil {
+	if err := lv.Resize(requested); err != nil {
 		log.Error("failed to resize LV", map[string]interface{}{
 			log.FnError: err,
 			"name":      req.GetName(),

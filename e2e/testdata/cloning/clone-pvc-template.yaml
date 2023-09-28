@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: %s
 spec:
-  storageClassName: topolvm-provisioner-thin
+  storageClassName: %s
   dataSource:
     name: %s
     kind: PersistentVolumeClaim

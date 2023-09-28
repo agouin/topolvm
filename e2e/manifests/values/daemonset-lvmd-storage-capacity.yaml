@@ -70,6 +70,12 @@ storageClasses:
       allowVolumeExpansion: true
       additionalParameters:
         topolvm.io/device-class: "thin"
+  - name: topolvm-provisioner-thick
+    storageClass:
+      fsType: ext4
+      isDefaultClass: false
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
 
 webhook:
   podMutatingWebhook:

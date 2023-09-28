@@ -88,10 +88,20 @@ volumeBindingMode: WaitForFirstConsumer
 parameters:
   "topolvm.io/device-class": "thin"
 ---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: topolvm-provisioner-thick
+parameters:
+  "csi.storage.k8s.io/fstype": "ext4"
+  "topolvm.io/device-class": "ssd"
+provisioner: topolvm.io
+volumeBindingMode: WaitForFirstConsumer
+---
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: topolvm-provisioner-thin
+  name: topolvm-provisioner
 driver: topolvm.io
 deletionPolicy: Delete
 ---

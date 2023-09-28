@@ -13,14 +13,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-//go:embed testdata/provisioning/pod-template.yaml
-var podTemplateYAML string
-
-//go:embed testdata/provisioning/pvc-template.yaml
-var provPVCTemplateYAML string
-
-func testThinProvisioning() {
-	testNamespacePrefix := "thinptest-"
+func testThickProvisioning() {
+	testNamespacePrefix := "thickptest-"
 	var ns string
 	var cc CleanupContext
 	BeforeEach(func() {
@@ -37,7 +31,7 @@ func testThinProvisioning() {
 		commonAfterEach(cc)
 	})
 
-	It("should thin provision a PV", func() {
+	It("should thick provision a PV", func() {
 		By("deploying Pod with PVC")
 
 		nodeName := "topolvm-e2e-worker"
@@ -45,18 +39,18 @@ func testThinProvisioning() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
 
-		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol", "1", thinStorageClassName))
-		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
+		thickPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thickvol", "1", thickStorageClassName))
+		_, err := kubectlWithInput(thickPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
-		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
+		thickPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thickpod", "thickvol", topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		By("confirming that the lv was created in the thin volume group and pool")
+		By("confirming that the lv was created in the thick volume group and pool")
 		var lvName string
 		Eventually(func() error {
-			lvName, err = getLVNameOfPVC("thinvol", ns)
+			lvName, err = getLVNameOfPVC("thickvol", ns)
 			return err
 		}).Should(Succeed())
 
@@ -76,9 +70,9 @@ func testThinProvisioning() {
 		Expect(poolName).Should(Equal(lv.poolName))
 
 		By("deleting the Pod and PVC")
-		_, err = kubectlWithInput(thinPodYAML, "delete", "-n", ns, "-f", "-")
+		_, err = kubectlWithInput(thickPodYAML, "delete", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
-		_, err = kubectlWithInput(thinPvcYAML, "delete", "-n", ns, "-f", "-")
+		_, err = kubectlWithInput(thickPvcYAML, "delete", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming that the PV is deleted")
@@ -101,9 +95,9 @@ func testThinProvisioning() {
 		}).Should(Succeed())
 	})
 
-	It("should overprovision thin PVCs", func() {
-		By("deploying multiple PVCS with total size < thinpoolsize * overprovisioning")
-		// The actual thinpool size is 4 GB . With an overprovisioning limit of 5, it should allow
+	It("should overprovision thick PVCs", func() {
+		By("deploying multiple PVCS with total size < thickpoolsize * overprovisioning")
+		// The actual thickpool size is 4 GB . With an overprovisioning limit of 5, it should allow
 		// PVCs totalling upto 20 GB for each node
 		nodeName := "topolvm-e2e-worker2"
 		if isDaemonsetLvmdEnvSet() {
@@ -111,17 +105,17 @@ func testThinProvisioning() {
 		}
 		for i := 0; i < 5; i++ {
 			num := strconv.Itoa(i)
-			thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol"+num, "3", thinStorageClassName))
-			_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
+			thickPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thickvol"+num, "3", thickStorageClassName))
+			_, err := kubectlWithInput(thickPvcYAML, "apply", "-n", ns, "-f", "-")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod"+num, "thinvol"+num, topolvm.GetTopologyNodeKey(), nodeName))
-			_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
+			thickPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thickpod"+num, "thickvol"+num, topolvm.GetTopologyNodeKey(), nodeName))
+			_, err = kubectlWithInput(thickPodYAML, "apply", "-n", ns, "-f", "-")
 			Expect(err).ShouldNot(HaveOccurred())
 
 		}
 
-		By("confirming that the volumes have been created in the thinpool")
+		By("confirming that the volumes have been created in the thickpool")
 
 		for i := 0; i < 5; i++ {
 			var lvName string
@@ -129,7 +123,7 @@ func testThinProvisioning() {
 
 			num := strconv.Itoa(i)
 			Eventually(func() error {
-				lvName, err = getLVNameOfPVC("thinvol"+num, ns)
+				lvName, err = getLVNameOfPVC("thickvol"+num, ns)
 				return err
 			}).Should(Succeed())
 
@@ -153,15 +147,15 @@ func testThinProvisioning() {
 
 		for i := 0; i < 5; i++ {
 			num := strconv.Itoa(i)
-			_, err := kubectl("delete", "-n", ns, "pod", "thinpod"+num)
+			_, err := kubectl("delete", "-n", ns, "pod", "thickpod"+num)
 			Expect(err).ShouldNot(HaveOccurred())
-			_, err = kubectl("delete", "-n", ns, "pvc", "thinvol"+num)
+			_, err = kubectl("delete", "-n", ns, "pvc", "thickvol"+num)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("confirming the Pod is deleted")
 			Eventually(func() error {
 				var pod corev1.Pod
-				err := getObjects(&pod, "pod", "-n", ns, "thinpod"+num)
+				err := getObjects(&pod, "pod", "-n", ns, "thickpod"+num)
 				switch {
 				case err == ErrObjectNotFound:
 					return nil
@@ -175,7 +169,7 @@ func testThinProvisioning() {
 			By("confirming the PVC is deleted")
 			Eventually(func() error {
 				var pvc corev1.PersistentVolumeClaim
-				err := getObjects(&pvc, "pvc", "-n", ns, "thinvol"+num)
+				err := getObjects(&pvc, "pvc", "-n", ns, "thickvol"+num)
 				switch {
 				case err == ErrObjectNotFound:
 					return nil
@@ -189,24 +183,24 @@ func testThinProvisioning() {
 	})
 
 	It("should check overprovision limits", func() {
-		By("Deploying a PVC to use up the available thinpoolsize * overprovisioning")
+		By("Deploying a PVC to use up the available thickpoolsize * overprovisioning")
 
 		nodeName := "topolvm-e2e-worker3"
 		if isDaemonsetLvmdEnvSet() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
 
-		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol", "18", thinStorageClassName))
-		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
+		thickPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thickvol", "18", thickStorageClassName))
+		_, err := kubectlWithInput(thickPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
-		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
+		thickPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thickpod", "thickvol", topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		var lvName string
 		Eventually(func() error {
-			lvName, err = getLVNameOfPVC("thinvol", ns)
+			lvName, err = getLVNameOfPVC("thickvol", ns)
 			return err
 		}).Should(Succeed())
 
@@ -225,18 +219,18 @@ func testThinProvisioning() {
 		poolName := "pool0"
 		Expect(poolName).Should(Equal(lv.poolName))
 
-		By("Failing to deploying a PVC when total size > thinpoolsize * overprovisioning")
-		thinPvcYAML = []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol2", "5", thinStorageClassName))
-		_, err = kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
+		By("Failing to deploying a PVC when total size > thickpoolsize * overprovisioning")
+		thickPvcYAML = []byte(fmt.Sprintf(provPVCTemplateYAML, "thickvol2", "5", thickStorageClassName))
+		_, err = kubectlWithInput(thickPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML = []byte(fmt.Sprintf(podTemplateYAML, "thinpod2", "thinvol2", topolvm.GetTopologyNodeKey(), nodeName))
-		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
+		thickPodYAML = []byte(fmt.Sprintf(podTemplateYAML, "thickpod2", "thickvol2", topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Eventually(func() error {
 			var pvc corev1.PersistentVolumeClaim
-			err = getObjects(&pvc, "pvc", "-n", ns, "thinvol2")
+			err = getObjects(&pvc, "pvc", "-n", ns, "thickvol2")
 			if err != nil {
 				return fmt.Errorf("failed to get PVC. err: %w", err)
 			}
@@ -247,22 +241,22 @@ func testThinProvisioning() {
 		}).Should(Succeed())
 
 		By("Deleting the pods and pvcs")
-		_, err = kubectl("delete", "-n", ns, "pod", "thinpod")
+		_, err = kubectl("delete", "-n", ns, "pod", "thickpod")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = kubectl("delete", "-n", ns, "pod", "thinpod2")
+		_, err = kubectl("delete", "-n", ns, "pod", "thickpod2")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = kubectl("delete", "-n", ns, "pvc", "thinvol")
+		_, err = kubectl("delete", "-n", ns, "pvc", "thickvol")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = kubectl("delete", "-n", ns, "pvc", "thinvol2")
+		_, err = kubectl("delete", "-n", ns, "pvc", "thickvol2")
 		Expect(err).ShouldNot(HaveOccurred())
 
 		By("confirming the Pods are deleted")
 		Eventually(func() error {
 			var pod corev1.Pod
-			err := getObjects(&pod, "pod", "-n", ns, "thinpod")
+			err := getObjects(&pod, "pod", "-n", ns, "thickpod")
 			switch {
 			case err == ErrObjectNotFound:
 				return nil
@@ -275,7 +269,7 @@ func testThinProvisioning() {
 
 		Eventually(func() error {
 			var pod corev1.Pod
-			err := getObjects(&pod, "pod", "-n", ns, "thinpod2")
+			err := getObjects(&pod, "pod", "-n", ns, "thickpod2")
 			switch {
 			case err == ErrObjectNotFound:
 				return nil
@@ -289,7 +283,7 @@ func testThinProvisioning() {
 		By("confirming the PVCs are deleted")
 		Eventually(func() error {
 			var pvc corev1.PersistentVolumeClaim
-			err := getObjects(&pvc, "pvc", "-n", ns, "thinvol")
+			err := getObjects(&pvc, "pvc", "-n", ns, "thickvol")
 			switch {
 			case err == ErrObjectNotFound:
 				return nil
@@ -302,7 +296,7 @@ func testThinProvisioning() {
 
 		Eventually(func() error {
 			var pvc corev1.PersistentVolumeClaim
-			err := getObjects(&pvc, "pvc", "-n", ns, "thinvol2")
+			err := getObjects(&pvc, "pvc", "-n", ns, "thickvol2")
 			switch {
 			case err == ErrObjectNotFound:
 				return nil

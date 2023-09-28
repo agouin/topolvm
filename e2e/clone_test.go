@@ -14,15 +14,18 @@ import (
 
 var (
 	//go:embed testdata/cloning/clone-pod-template.yaml
-	thinPodCloneTemplateYAML string
+	podCloneTemplateYAML string
 
 	//go:embed testdata/cloning/clone-pvc-template.yaml
-	thinPvcCloneTemplateYAML string
+	pvcCloneTemplateYAML string
 )
 
 const (
 	thinClonePVCName = "thin-clone"
 	thinClonePodName = "thin-clone-pod"
+
+	thickClonePVCName = "thick-clone"
+	thickClonePodName = "thick-clone-pod"
 )
 
 func testPVCClone() {
@@ -37,18 +40,18 @@ func testPVCClone() {
 		}
 	})
 
-	It("should create a PVC Clone", func() {
+	It("should create a thin PVC Clone", func() {
 		By("deploying Pod with PVC")
 
 		nodeName := "topolvm-e2e-worker"
 		if isDaemonsetLvmdEnvSet() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
-		thinPvcYAML := []byte(fmt.Sprintf(thinPVCTemplateYAML, volName, pvcSize))
+		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, volName, pvcSize, thinStorageClassName))
 		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 		By("confirming if the source PVC is created")
@@ -77,11 +80,11 @@ func testPVCClone() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
 
-		thinPVCCloneYAML := []byte(fmt.Sprintf(thinPvcCloneTemplateYAML, thinClonePVCName, volName, pvcSize))
+		thinPVCCloneYAML := []byte(fmt.Sprintf(pvcCloneTemplateYAML, thinClonePVCName, thinStorageClassName, volName, pvcSize))
 		_, err = kubectlWithInput(thinPVCCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodCloneYAML := []byte(fmt.Sprintf(thinPodCloneTemplateYAML, thinClonePodName, thinClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodCloneYAML := []byte(fmt.Sprintf(podCloneTemplateYAML, thinClonePodName, thinClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -132,18 +135,18 @@ func testPVCClone() {
 
 	})
 
-	It("validate if the cloned PVC is standalone", func() {
+	It("validate if the cloned thin PVC is standalone", func() {
 
 		nodeName := "topolvm-e2e-worker"
 		if isDaemonsetLvmdEnvSet() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
 		By("creating a PVC")
-		thinPvcYAML := []byte(fmt.Sprintf(thinPVCTemplateYAML, volName, pvcSize))
+		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, volName, pvcSize, thinStorageClassName))
 		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 		Eventually(func() error {
@@ -159,11 +162,11 @@ func testPVCClone() {
 		}).Should(Succeed())
 
 		By("creating clone of the PVC")
-		thinPVCCloneYAML := []byte(fmt.Sprintf(thinPvcCloneTemplateYAML, thinClonePVCName, volName, pvcSize))
+		thinPVCCloneYAML := []byte(fmt.Sprintf(pvcCloneTemplateYAML, thinClonePVCName, thinStorageClassName, volName, pvcSize))
 		_, err = kubectlWithInput(thinPVCCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodCloneYAML := []byte(fmt.Sprintf(thinPodCloneTemplateYAML, thinClonePodName, thinClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodCloneYAML := []byte(fmt.Sprintf(podCloneTemplateYAML, thinClonePodName, thinClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -210,6 +213,185 @@ func testPVCClone() {
 
 		By("validating if the cloned volume is present and is not deleted")
 		lvName, err = getLVNameOfPVC(thinClonePVCName, nsCloneTest)
+		Expect(err).Should(Succeed())
+
+		_, err = getLVInfo(lvName)
+		Expect(err).Should(Succeed())
+	})
+
+	It("should create a thick PVC Clone", func() {
+		By("deploying Pod with PVC")
+
+		nodeName := "topolvm-e2e-worker"
+		if isDaemonsetLvmdEnvSet() {
+			nodeName = getDaemonsetLvmdNodeName()
+		}
+		thickPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, volName, pvcSize, thickStorageClassName))
+		_, err := kubectlWithInput(thickPvcYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		thickPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thickpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+		By("confirming if the source PVC is created")
+		Eventually(func() error {
+			var pvc corev1.PersistentVolumeClaim
+			err = getObjects(&pvc, "pvc", "-n", nsCloneTest, volName)
+			if err != nil {
+				return fmt.Errorf("failed to get PVC. err: %w", err)
+			}
+			if pvc.Status.Phase != corev1.ClaimBound {
+				return fmt.Errorf("PVC %s is not bound", volName)
+			}
+			return nil
+		}).Should(Succeed())
+
+		By("writing a file on mountpath")
+		writePath := "/test1/bootstrap.log"
+		Eventually(func() error {
+			_, err := kubectl("exec", "-n", nsCloneTest, "thickpod", "--", "cp", "/var/log/bootstrap.log", writePath)
+			return err
+		}).Should(Succeed())
+
+		_, err = kubectl("exec", "-n", nsCloneTest, "thickpod", "--", "sync")
+		Expect(err).ShouldNot(HaveOccurred())
+		stdout, err := kubectl("exec", "-n", nsCloneTest, "thickpod", "--", "cat", writePath)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
+
+		thickPVCCloneYAML := []byte(fmt.Sprintf(pvcCloneTemplateYAML, thickClonePVCName, thickStorageClassName, volName, pvcSize))
+		_, err = kubectlWithInput(thickPVCCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		thickPodCloneYAML := []byte(fmt.Sprintf(podCloneTemplateYAML, thickClonePodName, thickClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("confirming that the lv for cloned volume was created in the thick volume group and pool")
+		Eventually(func() error {
+			var pvc corev1.PersistentVolumeClaim
+			err := getObjects(&pvc, "pvc", "-n", nsCloneTest, thickClonePVCName)
+			if err != nil {
+				return fmt.Errorf("failed to get PVC. err: %w", err)
+			}
+			if pvc.Status.Phase != corev1.ClaimBound {
+				return fmt.Errorf("PVC %s is not bound", thickClonePVCName)
+			}
+			return nil
+		}).Should(Succeed())
+		var lvName string
+		Eventually(func() error {
+			lvName, err = getLVNameOfPVC(thickClonePVCName, nsCloneTest)
+			return err
+		}).Should(Succeed())
+
+		var lv *lvinfo
+		Eventually(func() error {
+			lv, err = getLVInfo(lvName)
+			return err
+		}).Should(Succeed())
+
+		vgName := "node1-myvg4"
+		if isDaemonsetLvmdEnvSet() {
+			vgName = "node-myvg5"
+		}
+		Expect(vgName).Should(Equal(lv.vgName))
+
+		poolName := "pool0"
+		Expect(poolName).Should(Equal(lv.poolName))
+
+		By("confirming that the file exists in the cloned volume")
+		Eventually(func() error {
+			stdout, err := kubectl("exec", "-n", nsCloneTest, thickClonePodName, "--", "cat", writePath)
+			if err != nil {
+				return fmt.Errorf("failed to cat. err: %w", err)
+			}
+			if len(strings.TrimSpace(string(stdout))) == 0 {
+				return fmt.Errorf(writePath + " is empty")
+			}
+			return nil
+		}).Should(Succeed())
+
+	})
+
+	It("validate if the cloned thick PVC is standalone", func() {
+
+		nodeName := "topolvm-e2e-worker"
+		if isDaemonsetLvmdEnvSet() {
+			nodeName = getDaemonsetLvmdNodeName()
+		}
+		By("creating a PVC")
+		thickPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, volName, pvcSize, thickStorageClassName))
+		_, err := kubectlWithInput(thickPvcYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		thickPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thickpod", volName, topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			var pvc corev1.PersistentVolumeClaim
+			err := getObjects(&pvc, "pvc", "-n", nsCloneTest, volName)
+			if err != nil {
+				return fmt.Errorf("failed to get PVC. err: %w", err)
+			}
+			if pvc.Status.Phase != corev1.ClaimBound {
+				return fmt.Errorf("PVC %s is not bound", volName)
+			}
+			return nil
+		}).Should(Succeed())
+
+		By("creating clone of the PVC")
+		thickPVCCloneYAML := []byte(fmt.Sprintf(pvcCloneTemplateYAML, thickClonePVCName, thickStorageClassName, volName, pvcSize))
+		_, err = kubectlWithInput(thickPVCCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		thickPodCloneYAML := []byte(fmt.Sprintf(podCloneTemplateYAML, thickClonePodName, thickClonePVCName, topolvm.GetTopologyNodeKey(), nodeName))
+		_, err = kubectlWithInput(thickPodCloneYAML, "apply", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("validating that the cloned volume is present")
+		Eventually(func() error {
+			var pvc corev1.PersistentVolumeClaim
+			err := getObjects(&pvc, "pvc", "-n", nsCloneTest, thickClonePVCName)
+			if err != nil {
+				return fmt.Errorf("failed to get PVC. err: %w", err)
+			}
+			if pvc.Status.Phase != corev1.ClaimBound {
+				return fmt.Errorf("PVC %s is not bound", thickClonePVCName)
+			}
+			return nil
+		}).Should(Succeed())
+
+		var lvName string
+		Eventually(func() error {
+			lvName, err = getLVNameOfPVC(thickClonePVCName, nsCloneTest)
+			return err
+		}).Should(Succeed())
+
+		var lv *lvinfo
+		Eventually(func() error {
+			lv, err = getLVInfo(lvName)
+			return err
+		}).Should(Succeed())
+
+		vgName := "node1-myvg4"
+		if isDaemonsetLvmdEnvSet() {
+			vgName = "node-myvg5"
+		}
+		Expect(vgName).Should(Equal(lv.vgName))
+
+		poolName := "pool0"
+		Expect(poolName).Should(Equal(lv.poolName))
+
+		By("deleting the source volume and application")
+		_, err = kubectlWithInput(thickPodYAML, "delete", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = kubectlWithInput(thickPvcYAML, "delete", "-n", nsCloneTest, "-f", "-")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		By("validating if the cloned volume is present and is not deleted")
+		lvName, err = getLVNameOfPVC(thickClonePVCName, nsCloneTest)
 		Expect(err).Should(Succeed())
 
 		_, err = getLVInfo(lvName)

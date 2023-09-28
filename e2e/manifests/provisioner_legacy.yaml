@@ -91,7 +91,7 @@ parameters:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: topolvm-provisioner-thin
+  name: topolvm-provisioner
 driver: topolvm.cybozu.com
 deletionPolicy: Delete
 ---
