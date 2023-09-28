@@ -102,7 +102,7 @@ func testSnapRestore() {
 		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
 
 		By("creating a snap")
-		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thinvol"))
+		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thinSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -218,7 +218,7 @@ func testSnapRestore() {
 		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
 
 		By("creating a snap")
-		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thinvol"))
+		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thinSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -354,7 +354,7 @@ func testSnapRestore() {
 		}).Should(Succeed())
 
 		By("creating a snap of the PVC")
-		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thinvol"))
+		thinSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thinSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 		Eventually(func() error {
@@ -478,7 +478,7 @@ func testSnapRestore() {
 		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
 
 		By("creating a snap")
-		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thickvol"))
+		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thickSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -530,14 +530,8 @@ func testSnapRestore() {
 			return err
 		}).Should(Succeed())
 
-		vgName := "node1-myvg4"
-		if isDaemonsetLvmdEnvSet() {
-			vgName = "node-myvg5"
-		}
+		vgName := "node-myvg1"
 		Expect(vgName).Should(Equal(lv.vgName))
-
-		poolName := "pool0"
-		Expect(poolName).Should(Equal(lv.poolName))
 
 		By("confirming that the file exists")
 		Eventually(func() error {
@@ -594,7 +588,7 @@ func testSnapRestore() {
 		Expect(strings.TrimSpace(string(stdout))).ShouldNot(BeEmpty())
 
 		By("creating a snap")
-		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thickvol"))
+		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thickSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -651,14 +645,8 @@ func testSnapRestore() {
 
 		By(fmt.Sprintf("using lv with size %v", lv.size))
 
-		vgName := "node1-myvg4"
-		if isDaemonsetLvmdEnvSet() {
-			vgName = "node-myvg5"
-		}
+		vgName := "node-myvg1"
 		Expect(vgName).Should(Equal(lv.vgName))
-
-		poolName := "pool0"
-		Expect(poolName).Should(Equal(lv.poolName))
 
 		By("confirming that the file exists")
 		Eventually(func() error {
@@ -730,7 +718,7 @@ func testSnapRestore() {
 		}).Should(Succeed())
 
 		By("creating a snap of the PVC")
-		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, "thickvol"))
+		thickSnapshotYAML := []byte(fmt.Sprintf(snapshotTemplateYAML, snapName, volumeSnapshotClassName, volName))
 		_, err = kubectlWithInput(thickSnapshotYAML, "apply", "-n", nsSnapTest, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 		Eventually(func() error {
@@ -782,14 +770,8 @@ func testSnapRestore() {
 			return err
 		}).Should(Succeed())
 
-		vgName := "node1-myvg4"
-		if isDaemonsetLvmdEnvSet() {
-			vgName = "node-myvg5"
-		}
+		vgName := "node-myvg1"
 		Expect(vgName).Should(Equal(lv.vgName))
-
-		poolName := "pool0"
-		Expect(poolName).Should(Equal(lv.poolName))
 
 		// delete the source PVC as well as the snapshot
 		By("deleting source volume and snap")
