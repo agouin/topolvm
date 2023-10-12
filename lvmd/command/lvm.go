@@ -504,22 +504,22 @@ func (l *LogicalVolume) Snapshot(name string, cowSize uint64, tags []string, thi
 		// for creating a thin-snapshot, max COW is irrelevant since the snapshot gets resized based on the
 		// thin-pool. Thus one should not define a size argument, otherwise the snapshot is not thin.
 		if !thin {
-			var gbSize uint64
+			var bSize uint64
 			if cowSize > 0 {
-				gbSize = cowSize >> 30
+				bSize = cowSize >> 30
 			} else {
-				gbSize = (l.size * 2 / 10) >> 30
-				if gbSize > cowMax {
-					gbSize = cowMax
+				bSize = (l.size * 2 / 10) >> 30
+				if bSize > cowMax {
+					bSize = cowMax
 				}
 			}
-			if gbSize < cowMin {
-				gbSize = cowMin
+			if bSize < cowMin {
+				bSize = cowMin
 			}
-			if l.size < (gbSize << 30) {
-				gbSize = (l.size >> 30) << 30
+			if l.size < (bSize << 30) {
+				bSize = (l.size >> 30) << 30
 			}
-			args = append(args, "-L", fmt.Sprintf("%vg", gbSize))
+			args = append(args, "-L", fmt.Sprintf("%vb", bSize))
 		}
 
 		if err := callLVM("lvcreate", args...); err != nil {

@@ -22,3 +22,11 @@ storageClasses:
       allowVolumeExpansion: true
       additionalParameters:
         "topolvm.io/device-class": "ssd-thin"
+  - name: topolvm-provisioner-thick
+    storageClass:
+      fsType: ext4
+      isDefaultClass: false
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+      additionalParameters:
+        topolvm.io/device-class: "ssd"

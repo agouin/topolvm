@@ -13,11 +13,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-//go:embed testdata/thin_provisioning/pod-template.yaml
-var thinPodTemplateYAML string
+//go:embed testdata/provisioning/pod-template.yaml
+var podTemplateYAML string
 
-//go:embed testdata/thin_provisioning/pvc-template.yaml
-var thinPVCTemplateYAML string
+//go:embed testdata/provisioning/pvc-template.yaml
+var provPVCTemplateYAML string
 
 func testThinProvisioning() {
 	testNamespacePrefix := "thinptest-"
@@ -45,11 +45,11 @@ func testThinProvisioning() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
 
-		thinPvcYAML := []byte(fmt.Sprintf(thinPVCTemplateYAML, "thinvol", "1"))
+		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol", "1", thinStorageClassName))
 		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -111,11 +111,11 @@ func testThinProvisioning() {
 		}
 		for i := 0; i < 5; i++ {
 			num := strconv.Itoa(i)
-			thinPvcYAML := []byte(fmt.Sprintf(thinPVCTemplateYAML, "thinvol"+num, "3"))
+			thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol"+num, "3", thinStorageClassName))
 			_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			thinPodYAML := []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod"+num, "thinvol"+num, topolvm.GetTopologyNodeKey(), nodeName))
+			thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod"+num, "thinvol"+num, topolvm.GetTopologyNodeKey(), nodeName))
 			_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -196,11 +196,11 @@ func testThinProvisioning() {
 			nodeName = getDaemonsetLvmdNodeName()
 		}
 
-		thinPvcYAML := []byte(fmt.Sprintf(thinPVCTemplateYAML, "thinvol", "18"))
+		thinPvcYAML := []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol", "18", thinStorageClassName))
 		_, err := kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML := []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodYAML := []byte(fmt.Sprintf(podTemplateYAML, "thinpod", "thinvol", topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -226,11 +226,11 @@ func testThinProvisioning() {
 		Expect(poolName).Should(Equal(lv.poolName))
 
 		By("Failing to deploying a PVC when total size > thinpoolsize * overprovisioning")
-		thinPvcYAML = []byte(fmt.Sprintf(thinPVCTemplateYAML, "thinvol2", "5"))
+		thinPvcYAML = []byte(fmt.Sprintf(provPVCTemplateYAML, "thinvol2", "5", thinStorageClassName))
 		_, err = kubectlWithInput(thinPvcYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
-		thinPodYAML = []byte(fmt.Sprintf(thinPodTemplateYAML, "thinpod2", "thinvol2", topolvm.GetTopologyNodeKey(), nodeName))
+		thinPodYAML = []byte(fmt.Sprintf(podTemplateYAML, "thinpod2", "thinvol2", topolvm.GetTopologyNodeKey(), nodeName))
 		_, err = kubectlWithInput(thinPodYAML, "apply", "-n", ns, "-f", "-")
 		Expect(err).ShouldNot(HaveOccurred())
 
